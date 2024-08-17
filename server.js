@@ -5,8 +5,8 @@ const morgan = require('morgan');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
-const crypto = require('crypto');
 
+// Import the components
 const createUserSubscription = require('./components/create_user_subscription');
 const submitAuthReq = require('./components/submit_auth_req');
 const authReqStatus = require('./components/auth_req_status');
@@ -16,116 +16,47 @@ const recurringDebitStatus = require('./components/recurring_debit_status');
 const revokeSub = require('./components/revoke_sub');
 const userSubscriptionStatus = require('./components/user_subscription_status');
 const verifyVPA = require('./components/verify_vpa');
-const recurringInit = require('./components/recurring_init'); // New
-const callbackRevoke = require('./components/callback_revoke'); // New
+const recurringInit = require('./components/recurring_init');
+const callbackRevoke = require('./components/callback_revoke');
+const cancelSubscription = require('./components/cancel_subscription'); // Import the cancel subscription component
 
 const app = express();
 const PORT = process.env.PORT || 3002;
 
-// Setting up middleware
-app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
-app.use(morgan('dev'));
 app.use(helmet());
+app.use(bodyParser.json());
+app.use(cors());
+app.use(morgan('tiny'));
 
-// Rate limiter
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: 'Too many requests, please try again later.',
 });
+
 app.use(limiter);
 
-// Test route
 app.get('/', (req, res) => {
-  res.send('PhonePe Integration APIs!');
+  res.send('Hello, World!');
 });
 
-// Health check route
-app.get('/health', (req, res) => {
-  res.send('Server is healthy!');
-});
+app.use('/subscription', createUserSubscription);
+app.use('/auth', submitAuthReq);
+app.use('/auth/status', authReqStatus);
+app.use('/notifications', recurringNotification);
+app.use('/recurring', recurringDebitExec);
+app.use('/recurring/status', recurringDebitStatus);
+app.use('/subscription/revoke', revokeSub);
+app.use('/subscription/status', userSubscriptionStatus);
+app.use('/vpa/verify', verifyVPA);
+app.use('/recurring/init', recurringInit);
+app.use('/callback/revoke', callbackRevoke);
 
-// Create User Subscription route
-app.post('/subscription/create', createUserSubscription);
+// Use the cancel subscription component
+app.use('/subscription/cancel', cancelSubscription);
 
-// Submit Auth Request route
-app.post('/auth/submit', submitAuthReq);
-
-// Auth Request Status route
-app.get('/auth/status', authReqStatus);
-
-// Recurring Debit Execute route
-app.post('/recurring/debit/execute', recurringDebitExec);
-
-// Recurring Debit Status route
-app.get('/recurring/debit/status', recurringDebitStatus);
-
-// Recurring Notification route
-app.post('/recurring/notification', recurringNotification);
-
-// User Subscription Status route
-app.get('/subscription/status', userSubscriptionStatus);
-
-// Verify VPA route
-app.post('/verify/vpa', verifyVPA);
-
-// Recurring Initialization route (New)
-app.post('/recurring/init', recurringInit);
-
-// Callback Revoke route (New)
-app.post('/callback/revoke', callbackRevoke);
-
-// Cancel Subscription route (New)
-app.post('/subscription/cancel', (req, res) => {
-  const { subscriptionId } = req.body;
-
-  if (!subscriptionId) {
-    return res.status(400).json({ success: false, message: 'Subscription ID is required' });
-  }
-
-  const salt_key = process.env.SALT_KEY;
-  const salt_Index = process.env.SALT_INDEX;
-
-  const payload = {
-    merchantId: process.env.MERCHANT_ID,
-    merchantUserId: process.env.MERCHANT_USER_ID,
-    subscriptionId: subscriptionId,
-  };
-
-  const payload_main = Buffer.from(JSON.stringify(payload)).toString('base64');
-  const string = `${payload_main}/v3/recurring/subscription/cancel${salt_key}`;
-  const checksum = crypto.createHash('sha256').update(string).digest('hex') + `###${salt_Index}`;
-
-  axios.post('https://api-preprod.phonepe.com/apis/pg-sandbox/v3/recurring/subscription/cancel',
-    { request: payload_main },
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Verify': checksum,
-        'X-Callback-URL': process.env.CALLBACK_URL
-      }
-    })
-    .then(response => {
-      console.log('Cancel subscription response:', response.data);
-      res.json(response.data);
-    })
-    .catch(error => {
-      console.error('Cancel subscription error:', error.response ? error.response.data : error.message);
-      res.status(500).json({ success: false, message: 'Failed to cancel subscription' });
-    });
-});
-
-// S2S Callback Handler
-app.post('/callback', (req, res) => {
-  // Handle S2S callback here
-  // Validate checksum and process callback data
-  console.log('S2S Callback received:', req.body);
-
-  res.status(200).json({ success: true });
-});
-
-// Start server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
+
+//this is my server.js

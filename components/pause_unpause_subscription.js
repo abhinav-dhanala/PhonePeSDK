@@ -1,6 +1,5 @@
 const axios = require('axios');
 const sha256 = require('sha256');
-const uniqid = require('uniqid');
 
 const MERCHANT_ID = "PGTESTPAYUAT140";
 const PHONE_PE_HOST_URL = "https://api-preprod.phonepe.com/apis/pg-sandbox";
@@ -17,34 +16,28 @@ function createChecksum(payload, endpoint) {
 }
 
 module.exports = async function (req, res) {
-    const { amount, mobile, merchantUserId, merchantSubscriptionId } = req.body;
+    const { merchantUserId, subscriptionId, action } = req.body; // action can be 'PAUSE' or 'UNPAUSE'
 
     // Log received payload
-    console.log('Received payload in create_user_subscription:', req.body);
+    console.log('Received payload in pause_unpause_subscription:', req.body);
 
     // Validate input
-    if (!amount || !mobile || !merchantUserId || !merchantSubscriptionId) {
+    if (!merchantUserId || !subscriptionId || !['PAUSE', 'UNPAUSE'].includes(action)) {
         console.error('Invalid input:', req.body);
         return res.status(400).json({ success: false, message: 'Invalid input' });
     }
 
     let payload = {
         merchantId: MERCHANT_ID,
-        merchantSubscriptionId: merchantSubscriptionId, // Correct variable name
         merchantUserId: merchantUserId,
-        authWorkflowType: 'PENNY_DROP', // or 'TRANSACTION'
-        amountType: 'FIXED', // or 'VARIABLE'
-        amount: amount, // Ensure amount is in the smallest currency unit (paise)
-        frequency: 'MONTHLY',
-        recurringCount: 12,
-        mobileNumber: mobile,
-        deviceContext: { phonePeVersionCode: 400922 }
+        subscriptionId: subscriptionId,
+        action: action,
     };
 
     // Log payload before sending to PhonePe
     console.log('Payload to PhonePe:', payload);
 
-    const endpoint = '/v3/recurring/subscription/create';
+    const endpoint = '/v3/recurring/subscription/' + action.toLowerCase();
     const xVerifyChecksum = createChecksum(payload, endpoint);
 
     try {
@@ -64,7 +57,7 @@ module.exports = async function (req, res) {
         // Return response to client
         res.status(200).json(response.data);
     } catch (error) {
-        console.error('Error creating user subscription:', error.message);
+        console.error(`Error ${action.toLowerCase()}ing subscription:`, error.message);
         if (error.response) {
             console.error('Error response data:', error.response.data);
             console.error('Error response status:', error.response.status);
