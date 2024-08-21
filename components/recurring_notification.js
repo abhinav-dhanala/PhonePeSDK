@@ -1,6 +1,3 @@
-//curl cmg-> curl -X POST http://localhost:3002/recurring/init -H "Content-Type: application/json" -d "{\"subscriptionId\": \"OM2407061047023094210731\", \"transactionId\": \"TX9876543210\", \"amount\": 399, \"userId\": \"U123456789\"}"
-
-
 const axios = require("axios");
 const sha256 = require("sha256");
 
@@ -22,6 +19,7 @@ function createChecksum(payload, endpoint) {
 
 module.exports = async function (req, res) {
   const { subscriptionId, transactionId, amount, userId } = req.body;
+
   const payload = {
     merchantId: MERCHANT_ID,
     merchantUserId: userId,
@@ -31,11 +29,13 @@ module.exports = async function (req, res) {
     amount: amount * 100, // Ensure amount is in the smallest currency unit (paise)
   };
 
-  console.log("Payload to PhonePe:", payload);
+  console.log("Setup Autopay Request Body:", JSON.stringify(payload, null, 2));
 
   const xVerifyChecksum = createChecksum(payload, "/v3/recurring/debit/init");
+  console.log("Generated Checksum:", xVerifyChecksum);
 
   try {
+    // Send request to PhonePe
     let response = await axios.post(
       `${PHONE_PE_HOST_URL}/v3/recurring/debit/init`,
       { request: Buffer.from(JSON.stringify(payload), "utf8").toString("base64") },
@@ -48,13 +48,18 @@ module.exports = async function (req, res) {
         },
       }
     );
+
     console.log("PhonePe response:", response.data);
     res.send(response.data);
+
   } catch (error) {
+    console.error("Error occurred during PhonePe request:");
+
     if (error.response) {
       console.error("Error data:", error.response.data);
       console.error("Error status:", error.response.status);
       console.error("Error headers:", error.response.headers);
+      console.error("Error config:", error.config);
       res.status(error.response.status).send(error.response.data);
     } else if (error.request) {
       console.error("Error request:", error.request);
